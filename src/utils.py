@@ -14,8 +14,7 @@ from urllib.parse import urlparse
 # Use absolute imports
 from config import (
     CONFIG_FILE, DEFAULT_CLIPPINGS_DIR, DEFAULT_ASSETS_DIR,
-    MAX_IMAGE_SIZE, REQUEST_TIMEOUT, NAVER_COOKIES, USER_AGENT,
-    IMAGE_DOWNLOAD_TIMEOUT, MAX_IMAGE_SIZE_MB
+    MAX_IMAGE_SIZE, REQUEST_TIMEOUT, NAVER_COOKIES, USER_AGENT
 )
 
 def sanitize_filename(title: str, max_length: int = 150) -> str:
