@@ -34,10 +34,13 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       
       - name: Create Cookies File
-        if: secrets.YOUTUBE_COOKIES_TXT != ''
+        env:
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES_TXT }}
         run: |
-          echo "${{ secrets.YOUTUBE_COOKIES_TXT }}" > cookies.txt
-          echo "🍪 Cookies file created."
+          if [ -n "$YOUTUBE_COOKIES" ]; then
+            echo "$YOUTUBE_COOKIES" > cookies.txt
+            echo "🍪 Cookies file created."
+          fi
 
       - name: Install Playwright Browsers
         run: |
