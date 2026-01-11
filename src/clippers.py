@@ -7,7 +7,7 @@ from urllib.parse import urlparse, urljoin
 import requests
 from bs4 import BeautifulSoup
 import trafilatura
-from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api import YouTubeTranscriptApi as YTApi
 import yt_dlp
 
 from .config import USER_AGENT, REQUEST_TIMEOUT, NAVER_COOKIES
@@ -702,7 +702,7 @@ class YouTubeClipper:
         # 1. Try youtube-transcript-api first (More robust for public videos)
         try:
             self.log("1단계: youtube-transcript-api 시도 중...")
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['ko', 'en'])
+            transcript_list = YTApi.get_transcript(video_id, languages=['ko', 'en'])
             
             # Format transcript
             formatter = []
