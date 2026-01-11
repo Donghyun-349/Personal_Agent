@@ -28,79 +28,38 @@ st.set_page_config(
 if 'processed_data' not in st.session_state:
     st.session_state.processed_data = None
 if 'logs' not in st.session_state:
-    st.session_state.logs = []
+    page_title="Web Clipper & Summarizer",
+    page_icon="📋",
+    layout="centered"
+)
 
-def log(message):
-    st.session_state.logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
-    # print(message) # Optional: print to server console
+st.title("📋 Web Clipper & Summarizer")
+st.markdown("YouTube 영상 또는 웹 페이지를 요약하고 Google Drive에 저장합니다.")
 
-# --- Sidebar: Configuration ---
-with st.sidebar:
-    st.header("⚙️ Configuration")
-    
-    # Load .env first
-    load_dotenv()
-    
-    # API Keys (Priority: Input > Env > Secrets)
-    env_gemini = os.getenv("GOOGLE_API_KEY")
-    env_folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
-    
-    # Try to get from Streamlit Secrets (for Cloud Deployment)
-    if not env_gemini and "GOOGLE_API_KEY" in st.secrets:
-        env_gemini = st.secrets["GOOGLE_API_KEY"]
-    if not env_folder_id and "GOOGLE_DRIVE_FOLDER_ID" in st.secrets:
-        env_folder_id = st.secrets["GOOGLE_DRIVE_FOLDER_ID"]
+# URL Input
+url = st.text_input(
+    "🔗 URL을 입력하세요",
+    placeholder="https://www.youtube.com/watch?v=... 또는 https://blog.naver.com/...",
+    help="YouTube 영상 또는 네이버 블로그, 웹 페이지 URL을 입력하세요"
+)
 
-    # Input Fields
-    api_key = st.text_input("Gemini API Key", value=env_gemini if env_gemini else "", type="password")
-    folder_id = st.text_input("Drive Folder ID", value=env_folder_id if env_folder_id else "")
-    
-    upload_to_drive = st.checkbox("Upload to Google Drive", value=True)
-    
-    st.divider()
-    st.subheader("📜 Logs")
-    log_area = st.empty()
-    log_text = "\n".join(st.session_state.logs)
-    st.text_area("Log Output", value=log_text, height=300, disabled=True)
-
-
-# --- Main Logic ---
-st.title("🧠 AI Content Analyst")
-st.markdown("YouTube 영상이나 웹 기사(Article)를 입력하면 **요약, 분석, PDF 생성**을 수행합니다.")
-
-url = st.text_input("🔗 URL 입력", placeholder="https://www.youtube.com/... or https://blog.naver.com/...")
-
-if st.button("🚀 분석 시작 (Analyze)", type="primary"):
+# Process button
+if st.button("🚀 시작", type="primary", use_container_width=True):
     if not url:
-        st.warning("URL을 입력해주세요.")
-    elif not api_key:
-        st.error("Gemini API Key가 필요합니다. 설정(Sidebar)을 확인해주세요.")
+        st.error("URL을 입력해주세요!")
     else:
-        st.session_state.logs = [] # Clear logs
-        st.session_state.processed_data = None
-        
-        with st.spinner("분석 중입니다... 잠시만 기다려주세요."):
-            try:
-                # 1. Setup
-                log("🚀 Starting Analysis...")
-                cwd = Path.getcwd()
-                output_dir = cwd / "output"
-                output_dir.mkdir(exist_ok=True)
-                assets_dir = output_dir / "assets"
-                assets_dir.mkdir(exist_ok=True)
-
-                image_processor = ImageProcessor(assets_dir)
-                html_gen = HTMLGenerator(output_dir, assets_dir)
-                pdf_gen = PDFGenerator(output_dir, assets_dir)
-                md_gen = MarkdownGenerator(output_dir)
+        try:
+            # Initialize components
+            with st.spinner("초기화 중..."):
+                api_key = os.getenv('GOOGLE_API_KEY')
+                token_json = os.getenv('GOOGLE_TOKEN_JSON')
+                folder_id = os.getenv('GOOGLE_DRIVE_FOLDER_ID')
+                
+                if not api_key:
+                    st.error("GOOGLE_API_KEY가 설정되지 않았습니다!")
+                    st.stop()
                 
                 summarizer = GeminiSummarizer(api_key)
-                uploader = None
-                
-                # Setup Drive Uploader if needed
-                if upload_to_drive:
-                    drive_token = os.getenv("GOOGLE_TOKEN_JSON")
-                    # Check local file fallback
                     if not drive_token:
                          possible_tokens = ["credentials/token.json", "token.json"]
                          for t in possible_tokens:
