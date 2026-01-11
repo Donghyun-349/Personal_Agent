@@ -121,6 +121,7 @@ def test_scraper():
                 if data.get('use_gemini_url'):
                     metadata['use_gemini_url'] = True
                     metadata['youtube_url'] = data['url']
+                    metadata['video_title'] = data.get('title', '제목 없음')  # 제목 전달
                 
                 summary = summarizer.summarize_text(data['content'], content_type='youtube', metadata=metadata)
                 if summary:

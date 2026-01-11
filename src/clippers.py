@@ -1004,7 +1004,26 @@ class YouTubeClipper:
         if is_github_actions:
             # GitHub Actions: Gemini URL 분석 방식 사용 (브라우저 스킵)
             self.log("🤖 GitHub Actions 환경 감지: Gemini URL 분석 모드로 전환")
-            metadata = {"title": "YouTube Video", "channel": "Unknown"}
+            
+            # 기본 메타데이터만 추출 시도 (쿠키 없이)
+            try:
+                ydl_opts = {
+                    'quiet': True,
+                    'no_warnings': True,
+                    'extract_flat': True,  # 빠른 메타데이터만 추출
+                    'skip_download': True
+                }
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+                    metadata = {
+                        "title": info.get('title', 'YouTube Video'),
+                        "channel": info.get('uploader', 'Unknown')
+                    }
+                    self.log(f"✅ 메타데이터 추출 성공: {metadata['title']}")
+            except Exception as e:
+                self.log(f"⚠️ 메타데이터 추출 실패: {e}")
+                metadata = {"title": "YouTube Video", "channel": "Unknown"}
+            
             transcript = None
             has_transcript = False
             use_gemini_url = True

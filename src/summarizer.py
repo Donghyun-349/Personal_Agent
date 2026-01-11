@@ -20,10 +20,14 @@ class GeminiSummarizer:
         try:
             # YouTube URL 직접 분석 모드 (GitHub Actions 환경 등)
             if metadata and metadata.get('use_gemini_url') and metadata.get('youtube_url'):
+                video_title = metadata.get('video_title', '제목 없음')
                 print(f"🎥 Gemini가 YouTube 영상을 직접 분석합니다: {metadata['youtube_url']}")
+                print(f"   영상 제목: {video_title}")
                 
-                youtube_url_prompt = """
+                youtube_url_prompt = f"""
 너는 YouTube 영상 분석 전문가이다. 제공된 영상을 시청하고 Obsidian 마크다운 형식으로 요약하라.
+
+**중요: 분석할 영상의 제목은 "{video_title}"이다. 반드시 이 영상을 분석해야 한다.**
 
 # Output Format (Strict)
 1. YAML Frontmatter 필수 (가장 첫 줄)
@@ -38,7 +42,7 @@ class GeminiSummarizer:
 - aliases: [영상 제목]
 - tags: 10개 내외의 복합 태그 (예: #미연준_금리인하_지연)
 
-## 2. # 영상 제목
+## 2. # 영상 제목 (반드시 "{video_title}"를 사용)
 
 ## 3. 핵심 인사이트 & 전략
 - 핵심 메시지
