@@ -10,9 +10,11 @@ from bs4 import BeautifulSoup
 import trafilatura
 import youtube_transcript_api
 import yt_dlp
+from pathlib import Path
 
-from .config import USER_AGENT, REQUEST_TIMEOUT, NAVER_COOKIES
-from .utils import sanitize_filename, ImageProcessor
+# Use absolute imports instead of relative
+from config import USER_AGENT, REQUEST_TIMEOUT, NAVER_COOKIES
+from utils import sanitize_filename, download_imageProcessor
 
 # Forward declaration for type hinting
 # from .generators import HTMLGenerator (Circular import avoidance: use TYPE_CHECKING or just 'HTMLGenerator')
