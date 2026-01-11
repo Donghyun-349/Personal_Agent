@@ -943,7 +943,24 @@ class YouTubeClipper:
                     if transcript_button.count() > 0:
                         self.log("  → 자막 버튼 발견, 클릭 중...")
                         transcript_button.first.click()
-                        time.sleep(2)
+                        
+                        # 자막 패널이 로드될 때까지 명시적으로 대기 (최대 10초)
+                        self.log("  → 자막 패널 로딩 대기 중...")
+                        try:
+                            page.wait_for_selector("ytd-transcript-segment-renderer", timeout=10000)
+                            self.log("  → 자막 패널 로딩 완료")
+                        except:
+                            self.log("  → 자막 패널 로딩 타임아웃 (10초)")
+                        
+                        time.sleep(2)  # 추가 안정화 대기
+                        
+                        # 디버깅용 스크린샷 저장
+                        try:
+                            screenshot_path = "test_output/debug_transcript.png"
+                            page.screenshot(path=screenshot_path)
+                            self.log(f"  → 스크린샷 저장: {screenshot_path}")
+                        except:
+                            pass
                         
                         # 자막 텍스트 수집
                         segments = page.query_selector_all("ytd-transcript-segment-renderer")
