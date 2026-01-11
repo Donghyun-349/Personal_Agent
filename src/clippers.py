@@ -882,6 +882,7 @@ class YouTubeClipper:
         """Playwright를 이용해 브라우저 상에서 직접 정보와 자막 추출 (쿠키 불필요)"""
         from playwright.sync_api import sync_playwright
         import time
+        import traceback
 
         self.log(f"🌐 브라우저 기반 추출 시작: {url}")
         
@@ -896,30 +897,40 @@ class YouTubeClipper:
 
         try:
             with sync_playwright() as p:
+                self.log("  → Playwright 초기화 완료")
                 browser = p.chromium.launch(headless=True)
+                self.log("  → 브라우저 실행 완료")
+                
                 # 실제 브라우저처럼 보이도록 User-Agent 및 언어 설정
                 context = browser.new_context(
                     user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                     locale="ko-KR"
                 )
                 page = context.new_page()
+                self.log("  → 페이지 생성 완료")
                 
                 # 타임아웃 설정 및 페이지 이동
+                self.log(f"  → 페이지 로딩 중: {url}")
                 page.goto(url, wait_until="networkidle", timeout=60000)
+                self.log("  → 페이지 로딩 완료")
                 time.sleep(3) # 추가 렌더링 대기
 
                 # 1. 메타데이터 추출
                 try:
                     result["title"] = page.title().replace(" - YouTube", "")
+                    self.log(f"  → 제목 추출: {result['title']}")
                     # 채널명 추출 (다양한 셀렉터 시도)
                     channel_elem = page.query_selector("#upload-info #channel-name a, #owner #channel-name a")
                     if channel_elem:
                         result["channel"] = channel_elem.inner_text()
+                        self.log(f"  → 채널명 추출: {result['channel']}")
                 except Exception as me:
                     self.log(f"⚠️ 브라우저 메타데이터 추출 중 경고: {me}")
+                    self.log(f"   상세: {traceback.format_exc()}")
 
                 # 2. 자막 창 열기 시도
                 try:
+                    self.log("  → 자막 버튼 찾는 중...")
                     # '더보기' 버튼 클릭하여 설명란 확장
                     more_button = page.query_selector("#description-inner #expand, .ytd-video-secondary-info-renderer #more")
                     if more_button:
@@ -930,11 +941,13 @@ class YouTubeClipper:
                     # 한국어/영어 버튼 텍스트 대응
                     transcript_button = page.get_by_role("button", name=re.compile(r"스크립트 표시|Show transcript", re.I))
                     if transcript_button.count() > 0:
+                        self.log("  → 자막 버튼 발견, 클릭 중...")
                         transcript_button.first.click()
                         time.sleep(2)
                         
                         # 자막 텍스트 수집
                         segments = page.query_selector_all("ytd-transcript-segment-renderer")
+                        self.log(f"  → 자막 세그먼트 {len(segments)}개 발견")
                         if segments:
                             formatter = []
                             for seg in segments:
@@ -948,14 +961,20 @@ class YouTubeClipper:
                             result["transcript"] = "\n".join(formatter)
                             self.log(f"✅ 브라우저로 자막 추출 성공 ({len(result['transcript'])}자)")
                             result["success"] = True
+                        else:
+                            self.log("  → 자막 세그먼트를 찾을 수 없음")
+                    else:
+                        self.log("  → 자막 버튼을 찾을 수 없음")
                 except Exception as te:
                     self.log(f"⚠️ 브라우저 자막 추출 중 실패: {te}")
+                    self.log(f"   상세: {traceback.format_exc()}")
 
                 browser.close()
                 return result
 
         except Exception as e:
             self.log(f"❌ 브라우저 기반 추출 전체 실패: {e}")
+            self.log(f"   상세: {traceback.format_exc()}")
             return result
 
     def extract_content(self, url: str) -> Dict:
@@ -996,5 +1015,7 @@ class YouTubeClipper:
             "channel": metadata.get("channel", "Unknown"),
             "content": "".join(content_parts),
             "video_id": video_id,
-            "url": url
+            "url": url,
+            "type": "youtube",
+            "has_transcript": has_transcript
         }
