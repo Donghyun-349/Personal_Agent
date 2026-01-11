@@ -19,6 +19,9 @@ from .config import (
 def sanitize_filename(title: str, max_length: int = 150) -> str:
     """파일명에서 특수문자 제거 및 정리"""
     invalid_chars = r'<>:"/\|?*'
+    # Remove metadata like [Title] or [NOTICE] from filename
+    title = re.sub(r'\[.*?\]', '', title).strip()
+    
     for char in invalid_chars:
         title = title.replace(char, '_')
     title = title.replace(' ', '_')
