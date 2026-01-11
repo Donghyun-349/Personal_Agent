@@ -709,20 +709,27 @@ class YouTubeClipper:
             self.log(f"🍪 쿠키 파일 발견: {cookie_file}")
         
         # 1. Try youtube-transcript-api first (More robust for public videos)
+        # 1. Try youtube-transcript-api first (More robust for public videos)
         try:
             self.log("1단계: youtube-transcript-api 시도 중...")
             self.log(f"DEBUG: youtube_transcript_api dir: {dir(youtube_transcript_api)}")
             if hasattr(youtube_transcript_api, 'YouTubeTranscriptApi'):
                  self.log(f"DEBUG: YouTubeTranscriptApi dir: {dir(youtube_transcript_api.YouTubeTranscriptApi)}")
 
+            # Use list_transcripts which returns a TranscriptList object
             if cookie_file:
-                transcript_list = youtube_transcript_api.YouTubeTranscriptApi.get_transcript(video_id, languages=['ko', 'en'], cookies=cookie_file)
+                transcript_list_obj = youtube_transcript_api.YouTubeTranscriptApi.list_transcripts(video_id, cookies=cookie_file)
             else:
-                transcript_list = youtube_transcript_api.YouTubeTranscriptApi.get_transcript(video_id, languages=['ko', 'en'])
+                transcript_list_obj = youtube_transcript_api.YouTubeTranscriptApi.list_transcripts(video_id)
+            
+            # Filter for Korean or English
+            transcript = transcript_list_obj.find_transcript(['ko', 'en'])
+            # Fetch the actual transcript data
+            transcript_data = transcript.fetch()
             
             # Format transcript
             formatter = []
-            for item in transcript_list:
+            for item in transcript_data:
                 start = item['start']
                 text = item['text']
                 
@@ -734,7 +741,7 @@ class YouTubeClipper:
                 formatter.append(f"[{time_str}] {text}")
             
             full_text = "\n".join(formatter)
-            self.log(f"✅ youtube-transcript-api 자막 추출 성공 ({len(full_text)}자)")
+            self.log(f"✅ youtube-transcript-api 자막 추출 성공 ({transcript.language}, {len(full_text)}자)")
             return full_text, True
             
         except Exception as e:
