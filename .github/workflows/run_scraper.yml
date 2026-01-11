@@ -32,6 +32,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      
+      - name: Create Cookies File
+        if: ${{ secrets.YOUTUBE_COOKIES_TXT != '' }}
+        run: |
+          echo "${{ secrets.YOUTUBE_COOKIES_TXT }}" > cookies.txt
+          echo "🍪 Cookies file created."
 
       - name: Install Playwright Browsers
         run: |

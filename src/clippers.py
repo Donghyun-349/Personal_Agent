@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import re
+import os
 import html
 import hashlib
 from typing import Optional, Dict, Tuple, List
@@ -699,10 +700,21 @@ class YouTubeClipper:
     def extract_transcript(self, video_id: str) -> Tuple[Optional[str], bool]:
         self.log(f"🎬 자막 추출 시도: {video_id}")
         
+        # Check for cookies (Priority: Env Var Path > Local 'cookies.txt')
+        cookie_file = os.getenv("YOUTUBE_COOKIES_PATH")
+        if not cookie_file and os.path.exists("cookies.txt"):
+            cookie_file = "cookies.txt"
+        
+        if cookie_file:
+            self.log(f"🍪 쿠키 파일 발견: {cookie_file}")
+        
         # 1. Try youtube-transcript-api first (More robust for public videos)
         try:
             self.log("1단계: youtube-transcript-api 시도 중...")
-            transcript_list = YTApi.get_transcript(video_id, languages=['ko', 'en'])
+            if cookie_file:
+                transcript_list = YTApi.get_transcript(video_id, languages=['ko', 'en'], cookies=cookie_file)
+            else:
+                transcript_list = YTApi.get_transcript(video_id, languages=['ko', 'en'])
             
             # Format transcript
             formatter = []
@@ -730,8 +742,9 @@ class YouTubeClipper:
             ydl_opts = {
                 'writesubtitles': True, 'writeautomaticsub': True,
                 'subtitleslangs': ['ko', 'en'], 'skip_download': True, 'quiet': True,
-                # 'cookiefile': 'cookies.txt', # Consider enabling if user provides cookies
             }
+            if cookie_file:
+                ydl_opts['cookiefile'] = cookie_file
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
