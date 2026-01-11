@@ -14,7 +14,7 @@ from pathlib import Path
 
 # Use absolute imports instead of relative
 from config import USER_AGENT, REQUEST_TIMEOUT, NAVER_COOKIES
-from utils import sanitize_filename, download_imageProcessor
+from utils import sanitize_filename, ImageProcessor
 
 # Forward declaration for type hinting
 # from .generators import HTMLGenerator (Circular import avoidance: use TYPE_CHECKING or just 'HTMLGenerator')
