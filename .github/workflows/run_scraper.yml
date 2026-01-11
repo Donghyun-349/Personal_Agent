@@ -26,29 +26,17 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y fonts-nanum ffmpeg
+          sudo apt-get install -y fonts-nanum
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install --force-reinstall -r requirements.txt; fi
-          pip show youtube-transcript-api || echo "Package not found"
-      
-      - name: Debug Dependencies
-        run: python src/debug_libs.py
-      
-      - name: Create Cookies File
-        env:
-          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES_TXT }}
-        run: |
-          if [ -n "$YOUTUBE_COOKIES" ]; then
-            echo "$YOUTUBE_COOKIES" > cookies.txt
-            echo "🍪 Cookies file created."
-          fi
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Install Playwright Browsers
+      - name: Install Playwright Browsers & Deps
         run: |
           playwright install chromium
+          sudo playwright install-deps chromium
 
       - name: Run Scraper
         env:

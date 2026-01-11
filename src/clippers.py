@@ -878,13 +878,105 @@ class YouTubeClipper:
             self.log(f"메타데이터 추출 실패: {e}")
             return {"title": "Untitled", "channel": "Unknown", "upload_date": "", "description": ""}
     
+    def _extract_via_browser(self, url: str) -> Dict:
+        """Playwright를 이용해 브라우저 상에서 직접 정보와 자막 추출 (쿠키 불필요)"""
+        from playwright.sync_api import sync_playwright
+        import time
+
+        self.log(f"🌐 브라우저 기반 추출 시작: {url}")
+        
+        result = {
+            "title": "Untitled",
+            "channel": "Unknown",
+            "upload_date": "",
+            "description": "",
+            "transcript": None,
+            "success": False
+        }
+
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                # 실제 브라우저처럼 보이도록 User-Agent 및 언어 설정
+                context = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    locale="ko-KR"
+                )
+                page = context.new_page()
+                
+                # 타임아웃 설정 및 페이지 이동
+                page.goto(url, wait_until="networkidle", timeout=60000)
+                time.sleep(3) # 추가 렌더링 대기
+
+                # 1. 메타데이터 추출
+                try:
+                    result["title"] = page.title().replace(" - YouTube", "")
+                    # 채널명 추출 (다양한 셀렉터 시도)
+                    channel_elem = page.query_selector("#upload-info #channel-name a, #owner #channel-name a")
+                    if channel_elem:
+                        result["channel"] = channel_elem.inner_text()
+                except Exception as me:
+                    self.log(f"⚠️ 브라우저 메타데이터 추출 중 경고: {me}")
+
+                # 2. 자막 창 열기 시도
+                try:
+                    # '더보기' 버튼 클릭하여 설명란 확장
+                    more_button = page.query_selector("#description-inner #expand, .ytd-video-secondary-info-renderer #more")
+                    if more_button:
+                        more_button.click()
+                        time.sleep(1)
+                    
+                    # '스크립트 표시' 버튼 찾기 및 클릭
+                    # 한국어/영어 버튼 텍스트 대응
+                    transcript_button = page.get_by_role("button", name=re.compile(r"스크립트 표시|Show transcript", re.I))
+                    if transcript_button.count() > 0:
+                        transcript_button.first.click()
+                        time.sleep(2)
+                        
+                        # 자막 텍스트 수집
+                        segments = page.query_selector_all("ytd-transcript-segment-renderer")
+                        if segments:
+                            formatter = []
+                            for seg in segments:
+                                time_elem = seg.query_selector(".segment-timestamp")
+                                text_elem = seg.query_selector(".segment-text")
+                                if time_elem and text_elem:
+                                    t_str = time_elem.inner_text().strip()
+                                    txt = text_elem.inner_text().strip()
+                                    formatter.append(f"[{t_str}] {txt}")
+                            
+                            result["transcript"] = "\n".join(formatter)
+                            self.log(f"✅ 브라우저로 자막 추출 성공 ({len(result['transcript'])}자)")
+                            result["success"] = True
+                except Exception as te:
+                    self.log(f"⚠️ 브라우저 자막 추출 중 실패: {te}")
+
+                browser.close()
+                return result
+
+        except Exception as e:
+            self.log(f"❌ 브라우저 기반 추출 전체 실패: {e}")
+            return result
+
     def extract_content(self, url: str) -> Dict:
         video_id = self.extract_video_id(url)
         if not video_id: raise Exception("YouTube 영상 ID를 추출할 수 없습니다.")
         
-        metadata = self.extract_metadata(video_id)
+        # 1순위: 브라우저 기반 추출 시도 (쿠키 없이 가장 강력함)
+        browser_data = self._extract_via_browser(url)
+        
+        # 결과 결합
+        if browser_data["success"]:
+            metadata = browser_data
+            transcript = browser_data["transcript"]
+            has_transcript = True
+        else:
+            # 2순위: 기존 방식들로 시도 (백업)
+            self.log("🔄 브라우저 추출 실패. 기존 API/라이브러리 방식으로 전환합니다.")
+            metadata = self.extract_metadata(video_id)
+            transcript, has_transcript = self.extract_transcript(video_id)
+            
         thumbnail_url = self.get_thumbnail_url(video_id)
-        transcript, has_transcript = self.extract_transcript(video_id)
         
         content_parts = []
         if thumbnail_url: content_parts.append(f"![Thumbnail]({thumbnail_url})\n")
@@ -901,9 +993,8 @@ class YouTubeClipper:
         
         return {
             "title": metadata["title"],
+            "channel": metadata.get("channel", "Unknown"),
             "content": "".join(content_parts),
-            "url": url,
-            "type": "youtube",
-            "channel": metadata.get("channel", ""),
-            "has_transcript": has_transcript
+            "video_id": video_id,
+            "url": url
         }
