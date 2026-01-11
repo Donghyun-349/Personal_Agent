@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
-from clippers import YouTubeClipper, NaverBlogClipper, WebClipper
+from clippers import YouTubeClipper, WebClipper
 from generators import MarkdownGenerator, PDFGenerator
 from image_processor import ImageProcessor
 from summarizer import GeminiSummarizer
@@ -64,16 +64,12 @@ if st.button("🚀 시작", type="primary", use_container_width=True):
             
             # Determine content type
             is_youtube = 'youtube.com' in url or 'youtu.be' in url
-            is_naver = 'blog.naver.com' in url
             
             # Extract content
             with st.spinner("콘텐츠 추출 중..."):
                 if is_youtube:
                     clipper = YouTubeClipper()
                     st.info("🎥 YouTube 영상 처리 중...")
-                elif is_naver:
-                    clipper = NaverBlogClipper()
-                    st.info("📝 네이버 블로그 처리 중...")
                 else:
                     clipper = WebClipper()
                     st.info("🌐 웹 페이지 처리 중...")
