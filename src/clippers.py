@@ -711,6 +711,7 @@ class YouTubeClipper:
         # 1. Try youtube-transcript-api first (More robust for public videos)
         try:
             self.log("1단계: youtube-transcript-api 시도 중...")
+            self.log(f"DEBUG: YTApi content: {dir(YTApi)}")
             if cookie_file:
                 transcript_list = YTApi.get_transcript(video_id, languages=['ko', 'en'], cookies=cookie_file)
             else:
