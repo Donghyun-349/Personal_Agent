@@ -697,57 +697,60 @@ class YouTubeClipper:
         if response.status_code == 200: return url
         return f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
     
-    def extract_transcript(self, video_id: str) -> Tuple[Optional[str], bool]:
-        self.log(f"🎬 자막 추출 시도: {video_id}")
-        
+    def _get_cookie_file(self) -> Optional[str]:
         # Check for cookies (Priority: Env Var Path > Local 'cookies.txt')
         cookie_file = os.getenv("YOUTUBE_COOKIES_PATH")
         if not cookie_file and os.path.exists("cookies.txt"):
             cookie_file = "cookies.txt"
+        return cookie_file
+
+    def extract_transcript(self, video_id: str) -> Tuple[Optional[str], bool]:
+        self.log(f"🎬 자막 추출 시도: {video_id}")
         
+        cookie_file = self._get_cookie_file()
         if cookie_file:
             self.log(f"🍪 쿠키 파일 발견: {cookie_file}")
         
-        # 1. Try youtube-transcript-api first (More robust for public videos)
-        # 1. Try youtube-transcript-api first (More robust for public videos)
+        # 1. Try youtube-transcript-api first
         try:
             self.log("1단계: youtube-transcript-api 시도 중...")
             import sys
-            self.log(f"DEBUG: sys.path: {sys.path}")
+            # DEBUG Info
             self.log(f"DEBUG: youtube_transcript_api file: {getattr(youtube_transcript_api, '__file__', 'No __file__')}")
-            self.log(f"DEBUG: youtube_transcript_api dir: {dir(youtube_transcript_api)}")
             
-            if hasattr(youtube_transcript_api, 'YouTubeTranscriptApi'):
-                 YTApiClass = youtube_transcript_api.YouTubeTranscriptApi
-                 self.log(f"DEBUG: YouTubeTranscriptApi dir: {dir(YTApiClass)}")
-                 self.log(f"DEBUG: YouTubeTranscriptApi type: {type(YTApiClass)}")
-
-            # Use list_transcripts which returns a TranscriptList object
-            if cookie_file:
-                transcript_list_obj = youtube_transcript_api.YouTubeTranscriptApi.list_transcripts(video_id, cookies=cookie_file)
+            # The class might be shadowed or behave differently in some environments
+            YTApi = youtube_transcript_api.YouTubeTranscriptApi
+            
+            # Attempt list_transcripts (modern) or get_transcript (legacy)
+            if hasattr(YTApi, 'list_transcripts'):
+                if cookie_file:
+                    transcript_list_obj = YTApi.list_transcripts(video_id, cookies=cookie_file)
+                else:
+                    transcript_list_obj = YTApi.list_transcripts(video_id)
+                transcript = transcript_list_obj.find_transcript(['ko', 'en'])
+                transcript_data = transcript.fetch()
+                language = transcript.language
+            elif hasattr(YTApi, 'get_transcript'):
+                if cookie_file:
+                    transcript_data = YTApi.get_transcript(video_id, languages=['ko', 'en'], cookies=cookie_file)
+                else:
+                    transcript_data = YTApi.get_transcript(video_id, languages=['ko', 'en'])
+                language = "unknown"
             else:
-                transcript_list_obj = youtube_transcript_api.YouTubeTranscriptApi.list_transcripts(video_id)
-            
-            # Filter for Korean or English
-            transcript = transcript_list_obj.find_transcript(['ko', 'en'])
-            # Fetch the actual transcript data
-            transcript_data = transcript.fetch()
+                raise AttributeError(f"YouTubeTranscriptApi has neither list_transcripts nor get_transcript. Dir: {dir(YTApi)}")
             
             # Format transcript
             formatter = []
             for item in transcript_data:
                 start = item['start']
                 text = item['text']
-                
-                # Simple time formatting
                 minutes = int(start // 60)
                 seconds = int(start % 60)
                 time_str = f"{minutes:02d}:{seconds:02d}"
-                
                 formatter.append(f"[{time_str}] {text}")
             
             full_text = "\n".join(formatter)
-            self.log(f"✅ youtube-transcript-api 자막 추출 성공 ({transcript.language}, {len(full_text)}자)")
+            self.log(f"✅ youtube-transcript-api 자막 추출 성공 ({language}, {len(full_text)}자)")
             return full_text, True
             
         except Exception as e:
@@ -859,6 +862,10 @@ class YouTubeClipper:
     def extract_metadata(self, video_id: str) -> Dict:
         try:
             ydl_opts = {'quiet': True, 'no_warnings': True}
+            cookie_file = self._get_cookie_file()
+            if cookie_file:
+                ydl_opts['cookiefile'] = cookie_file
+                
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
                 return {
@@ -868,7 +875,7 @@ class YouTubeClipper:
                     "description": info.get('description', '')[:500]
                 }
         except Exception as e:
-            print(f"메타데이터 추출 실패: {e}")
+            self.log(f"메타데이터 추출 실패: {e}")
             return {"title": "Untitled", "channel": "Unknown", "upload_date": "", "description": ""}
     
     def extract_content(self, url: str) -> Dict:
