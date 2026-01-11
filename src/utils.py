@@ -11,9 +11,11 @@ from typing import Optional, Dict
 from PIL import Image
 from urllib.parse import urlparse
 
-from .config import (
-    CONFIG_FILE, DEFAULT_CLIPPINGS_DIR, DEFAULT_ASSETS_DIR, 
-    MAX_IMAGE_SIZE, REQUEST_TIMEOUT, NAVER_COOKIES, USER_AGENT
+# Use absolute imports
+from config import (
+    CONFIG_FILE, DEFAULT_CLIPPINGS_DIR, DEFAULT_ASSETS_DIR,
+    MAX_IMAGE_SIZE, REQUEST_TIMEOUT, NAVER_COOKIES, USER_AGENT,
+    IMAGE_DOWNLOAD_TIMEOUT, MAX_IMAGE_SIZE_MB
 )
 
 def sanitize_filename(title: str, max_length: int = 150) -> str:
