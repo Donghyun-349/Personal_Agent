@@ -8,7 +8,7 @@ from urllib.parse import urlparse, urljoin
 import requests
 from bs4 import BeautifulSoup
 import trafilatura
-from youtube_transcript_api import YouTubeTranscriptApi as YTApi
+import youtube_transcript_api
 import yt_dlp
 
 from .config import USER_AGENT, REQUEST_TIMEOUT, NAVER_COOKIES
@@ -711,11 +711,14 @@ class YouTubeClipper:
         # 1. Try youtube-transcript-api first (More robust for public videos)
         try:
             self.log("1단계: youtube-transcript-api 시도 중...")
-            self.log(f"DEBUG: YTApi content: {dir(YTApi)}")
+            self.log(f"DEBUG: youtube_transcript_api dir: {dir(youtube_transcript_api)}")
+            if hasattr(youtube_transcript_api, 'YouTubeTranscriptApi'):
+                 self.log(f"DEBUG: YouTubeTranscriptApi dir: {dir(youtube_transcript_api.YouTubeTranscriptApi)}")
+
             if cookie_file:
-                transcript_list = YTApi.get_transcript(video_id, languages=['ko', 'en'], cookies=cookie_file)
+                transcript_list = youtube_transcript_api.YouTubeTranscriptApi.get_transcript(video_id, languages=['ko', 'en'], cookies=cookie_file)
             else:
-                transcript_list = YTApi.get_transcript(video_id, languages=['ko', 'en'])
+                transcript_list = youtube_transcript_api.YouTubeTranscriptApi.get_transcript(video_id, languages=['ko', 'en'])
             
             # Format transcript
             formatter = []
