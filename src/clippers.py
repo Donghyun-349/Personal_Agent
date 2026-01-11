@@ -712,9 +712,15 @@ class YouTubeClipper:
         # 1. Try youtube-transcript-api first (More robust for public videos)
         try:
             self.log("1단계: youtube-transcript-api 시도 중...")
+            import sys
+            self.log(f"DEBUG: sys.path: {sys.path}")
+            self.log(f"DEBUG: youtube_transcript_api file: {getattr(youtube_transcript_api, '__file__', 'No __file__')}")
             self.log(f"DEBUG: youtube_transcript_api dir: {dir(youtube_transcript_api)}")
+            
             if hasattr(youtube_transcript_api, 'YouTubeTranscriptApi'):
-                 self.log(f"DEBUG: YouTubeTranscriptApi dir: {dir(youtube_transcript_api.YouTubeTranscriptApi)}")
+                 YTApiClass = youtube_transcript_api.YouTubeTranscriptApi
+                 self.log(f"DEBUG: YouTubeTranscriptApi dir: {dir(YTApiClass)}")
+                 self.log(f"DEBUG: YouTubeTranscriptApi type: {type(YTApiClass)}")
 
             # Use list_transcripts which returns a TranscriptList object
             if cookie_file:
