@@ -15,9 +15,46 @@ class GeminiSummarizer:
         """
         텍스트 요약 생성
         content_type: 'article' (default) or 'youtube'
-        metadata: 추가 정보 (예: publish_date)
+        metadata: 추가 정보 (예: publish_date, youtube_url, use_gemini_url)
         """
         try:
+            # YouTube URL 직접 분석 모드 (GitHub Actions 환경 등)
+            if metadata and metadata.get('use_gemini_url') and metadata.get('youtube_url'):
+                print(f"🎥 Gemini가 YouTube 영상을 직접 분석합니다: {metadata['youtube_url']}")
+                
+                youtube_url_prompt = """
+너는 YouTube 영상 분석 전문가이다. 제공된 영상을 시청하고 Obsidian 마크다운 형식으로 요약하라.
+
+# Output Format (Strict)
+1. YAML Frontmatter 필수 (가장 첫 줄)
+2. 순수 마크다운 (코드 블록 없이)
+3. 한국어 작성
+4. YAML 값에 콜론(:) 사용 금지
+
+# Structure
+## 1. YAML Frontmatter
+- created: 영상 게시일 (YYYY-MM-DD)
+- source: 채널명
+- aliases: [영상 제목]
+- tags: 10개 내외의 복합 태그 (예: #미연준_금리인하_지연)
+
+## 2. # 영상 제목
+
+## 3. 핵심 인사이트 & 전략
+- 핵심 메시지
+- 파급 효과
+- 행동 가이드
+
+## 4. 핵심 노트 (주제별 요약)
+
+## 5. 상세 타임라인 (타임스탬프 포함)
+"""
+                
+                response = self.model.generate_content([youtube_url_prompt, metadata['youtube_url']])
+                return response.text
+            
+            # 기본 텍스트 요약 모드
+
             # 기본 프롬프트 (기사/블로그용)
             article_prompt = """
 # Role

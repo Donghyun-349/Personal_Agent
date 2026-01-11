@@ -998,19 +998,32 @@ class YouTubeClipper:
         video_id = self.extract_video_id(url)
         if not video_id: raise Exception("YouTube 영상 ID를 추출할 수 없습니다.")
         
-        # 1순위: 브라우저 기반 추출 시도 (쿠키 없이 가장 강력함)
-        browser_data = self._extract_via_browser(url)
+        # GitHub Actions 환경 감지
+        is_github_actions = os.getenv('GITHUB_ACTIONS') == 'true'
         
-        # 결과 결합
-        if browser_data["success"]:
-            metadata = browser_data
-            transcript = browser_data["transcript"]
-            has_transcript = True
+        if is_github_actions:
+            # GitHub Actions: Gemini URL 분석 방식 사용 (브라우저 스킵)
+            self.log("🤖 GitHub Actions 환경 감지: Gemini URL 분석 모드로 전환")
+            metadata = {"title": "YouTube Video", "channel": "Unknown"}
+            transcript = None
+            has_transcript = False
+            use_gemini_url = True
         else:
-            # 2순위: 기존 방식들로 시도 (백업)
-            self.log("🔄 브라우저 추출 실패. 기존 API/라이브러리 방식으로 전환합니다.")
-            metadata = self.extract_metadata(video_id)
-            transcript, has_transcript = self.extract_transcript(video_id)
+            # 로컬 환경: 브라우저 기반 추출 시도
+            browser_data = self._extract_via_browser(url)
+            
+            # 결과 결합
+            if browser_data["success"]:
+                metadata = browser_data
+                transcript = browser_data["transcript"]
+                has_transcript = True
+                use_gemini_url = False
+            else:
+                # 2순위: 기존 방식들로 시도 (백업)
+                self.log("🔄 브라우저 추출 실패. 기존 API/라이브러리 방식으로 전환합니다.")
+                metadata = self.extract_metadata(video_id)
+                transcript, has_transcript = self.extract_transcript(video_id)
+                use_gemini_url = not has_transcript  # 자막 실패 시 Gemini URL 사용
             
         thumbnail_url = self.get_thumbnail_url(video_id)
         
@@ -1022,7 +1035,10 @@ class YouTubeClipper:
             content_parts.append(transcript)
         else:
             content_parts.append("## 안내\n\n")
-            content_parts.append("자막을 추출할 수 없습니다. 향후 요약을 위해서는 자막이 필요합니다.\n\n")
+            if use_gemini_url:
+                content_parts.append("Gemini가 영상을 직접 분석하여 요약합니다.\n\n")
+            else:
+                content_parts.append("자막을 추출할 수 없습니다. 향후 요약을 위해서는 자막이 필요합니다.\n\n")
             if metadata.get("description"):
                 content_parts.append("### 동영상 설명\n\n")
                 content_parts.append(metadata["description"])
@@ -1034,5 +1050,6 @@ class YouTubeClipper:
             "video_id": video_id,
             "url": url,
             "type": "youtube",
-            "has_transcript": has_transcript
+            "has_transcript": has_transcript,
+            "use_gemini_url": use_gemini_url  # Gemini에게 URL 분석 여부 전달
         }

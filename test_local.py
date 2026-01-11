@@ -117,6 +117,11 @@ def test_scraper():
                         formatted_date = f"{ud[:4]}-{ud[4:6]}-{ud[6:]}"
                         metadata['publish_date'] = formatted_date
                 
+                # YouTube URL 분석 모드 전달
+                if data.get('use_gemini_url'):
+                    metadata['use_gemini_url'] = True
+                    metadata['youtube_url'] = data['url']
+                
                 summary = summarizer.summarize_text(data['content'], content_type='youtube', metadata=metadata)
                 if summary:
                     # [구조 변경] 1. 요약 (Frontmatter 포함) -> 2. 대본 (이미지/헤더 제거)
