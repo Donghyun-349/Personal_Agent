@@ -31,8 +31,11 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements.txt ]; then pip install --force-reinstall -r requirements.txt; fi
           pip show youtube-transcript-api || echo "Package not found"
+      
+      - name: Debug Dependencies
+        run: python src/debug_libs.py
       
       - name: Create Cookies File
         env:
