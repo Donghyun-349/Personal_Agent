@@ -698,13 +698,39 @@ class YouTubeClipper:
     
     def extract_transcript(self, video_id: str) -> Tuple[Optional[str], bool]:
         self.log(f"🎬 자막 추출 시도: {video_id}")
-        self.log("1단계: youtube-transcript-api는 현재 비활성화되어 있습니다. yt-dlp로 진행합니다.")
         
+        # 1. Try youtube-transcript-api first (More robust for public videos)
+        try:
+            self.log("1단계: youtube-transcript-api 시도 중...")
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['ko', 'en'])
+            
+            # Format transcript
+            formatter = []
+            for item in transcript_list:
+                start = item['start']
+                text = item['text']
+                
+                # Simple time formatting
+                minutes = int(start // 60)
+                seconds = int(start % 60)
+                time_str = f"{minutes:02d}:{seconds:02d}"
+                
+                formatter.append(f"[{time_str}] {text}")
+            
+            full_text = "\n".join(formatter)
+            self.log(f"✅ youtube-transcript-api 자막 추출 성공 ({len(full_text)}자)")
+            return full_text, True
+            
+        except Exception as e:
+            self.log(f"⚠️ 1단계 실패 ({e}). 2단계(yt-dlp)로 전환합니다.")
+
+        # 2. Try yt-dlp as fallback
         try:
             self.log("2단계: yt-dlp로 자막 정보 조회 중...")
             ydl_opts = {
                 'writesubtitles': True, 'writeautomaticsub': True,
                 'subtitleslangs': ['ko', 'en'], 'skip_download': True, 'quiet': True,
+                # 'cookiefile': 'cookies.txt', # Consider enabling if user provides cookies
             }
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
