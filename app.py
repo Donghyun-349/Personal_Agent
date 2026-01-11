@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 from clippers import YouTubeClipper, WebClipper
 from generators import MarkdownGenerator, PDFGenerator
-from image_processor import ImageProcessor
+from utils import ImageProcessor
 from summarizer import GeminiSummarizer
 from uploader import GDriveUploader
 
