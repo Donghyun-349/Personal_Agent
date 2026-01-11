@@ -124,6 +124,16 @@ def test_scraper():
                 
                 summary = summarizer.summarize_text(data['content'], content_type='youtube', metadata=metadata)
                 if summary:
+                    # Gemini URL 분석 모드일 경우, 요약에서 제목 추출
+                    if data.get('use_gemini_url'):
+                        # YAML Frontmatter에서 제목 추출 (# 제목 형식)
+                        import re
+                        title_match = re.search(r'^#\s+(.+)$', summary, re.MULTILINE)
+                        if title_match:
+                            extracted_title = title_match.group(1).strip()
+                            data['title'] = extracted_title
+                            print(f"✅ Gemini로부터 제목 추출: {extracted_title}")
+                    
                     # [구조 변경] 1. 요약 (Frontmatter 포함) -> 2. 대본 (이미지/헤더 제거)
                     
                     # 대본 섹션 구성 (헤더 제거, 구분선만 추가)
