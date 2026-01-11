@@ -27,10 +27,18 @@ def test_scraper():
     load_dotenv()
     
     # Test URL
-    # url = "https://www.python.org/blogs/"
-    # url = "https://blog.naver.com/tri99er/224140816612"
-    url = "https://blog.naver.com/tri99er/224140816612?test_param=123&utm_source=test"
-    # url = "https://www.youtube.com/watch?v=gDdPs7oGRXU"
+    target_url_env = os.getenv("TARGET_URL")
+    if target_url_env:
+        url = target_url_env
+        print(f"🔗 Using URL from Environment Variable: {url}")
+    else:
+        # Default Test URLs
+        # url = "https://www.python.org/blogs/"
+        # url = "https://blog.naver.com/tri99er/224140816612"
+        # url = "https://blog.naver.com/tri99er/224140816612?test_param=123&utm_source=test"
+        url = "https://blog.naver.com/tri99er/224140816612?test_param=123&utm_source=test"
+        # url = "https://www.youtube.com/watch?v=gDdPs7oGRXU"
+    
     print(f"Target URL: {url}")
 
     # Setup directories
