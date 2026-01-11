@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
 import os
 import re
-import io
-import hashlib
-from datetime import datetime
+import json
 from pathlib import Path
-from typing import Dict, Optional
-from urllib.parse import urlparse, urljoin
+from datetime import datetime
+from typing import Optional, Dict
+from playwright.sync_api import sync_playwright
 import requests
-from PIL import Image
 from bs4 import BeautifulSoup
 
-from .config import MAX_IMAGE_SIZE, NAVER_COOKIES, USER_AGENT, REQUEST_TIMEOUT
-from .utils import sanitize_filename, generate_filename, ImageProcessor
+# Use absolute imports
+from config import MAX_IMAGE_SIZE, NAVER_COOKIES, USER_AGENT, REQUEST_TIMEOUT
+from utils import sanitize_filename, generate_filename, ImageProcessor
 
 class MarkdownGenerator:
     """Markdown 파일 생성 클래스"""
