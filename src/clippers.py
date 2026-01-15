@@ -681,7 +681,19 @@ class YouTubeClipper:
     
     def __init__(self, image_processor: ImageProcessor, log_callback=None):
         self.image_processor = image_processor
-        self.log = log_callback if log_callback else print
+        
+        # Wrap log callback to handle UTF-8 encoding on Windows
+        if log_callback:
+            self.log = log_callback
+        else:
+            import sys
+            # Fix Windows console encoding for emoji support
+            if sys.platform == 'win32':
+                try:
+                    sys.stdout.reconfigure(encoding='utf-8')
+                except:
+                    pass
+            self.log = print
     
     def extract_video_id(self, url: str) -> Optional[str]:
         patterns = [
@@ -1004,7 +1016,7 @@ class YouTubeClipper:
         is_github_actions = os.getenv('GITHUB_ACTIONS') == 'true'
         
         if is_github_actions:
-            # GitHub Actions: Gemini URL 분석 방식 사용 (브라우저 스킵)
+            # GitHub Actions: Gemini URL 분석 방식 사용
             self.log("🤖 GitHub Actions 환경 감지: Gemini URL 분석 모드로 전환")
             
             # 기본 메타데이터만 추출 시도 (쿠키 없이)
@@ -1030,21 +1042,11 @@ class YouTubeClipper:
             has_transcript = False
             use_gemini_url = True
         else:
-            # 로컬 환경: 브라우저 기반 추출 시도
-            browser_data = self._extract_via_browser(url)
-            
-            # 결과 결합
-            if browser_data["success"]:
-                metadata = browser_data
-                transcript = browser_data["transcript"]
-                has_transcript = True
-                use_gemini_url = False
-            else:
-                # 2순위: 기존 방식들로 시도 (백업)
-                self.log("🔄 브라우저 추출 실패. 기존 API/라이브러리 방식으로 전환합니다.")
-                metadata = self.extract_metadata(video_id)
-                transcript, has_transcript = self.extract_transcript(video_id)
-                use_gemini_url = not has_transcript  # 자막 실패 시 Gemini URL 사용
+            # 로컬 환경: API 방식으로 자막 추출 (빠르고 안정적)
+            self.log("📥 API 방식으로 자막 추출 시도...")
+            metadata = self.extract_metadata(video_id)
+            transcript, has_transcript = self.extract_transcript(video_id)
+            use_gemini_url = not has_transcript  # 자막 실패 시 Gemini URL 사용
             
         thumbnail_url = self.get_thumbnail_url(video_id)
         

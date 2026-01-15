@@ -58,9 +58,16 @@ if st.button("🚀 시작", type="primary", use_container_width=True):
                 else:
                     st.warning("Google Drive 인증 정보가 없습니다. 업로드를 건너뜁니다.")
                 
-                image_processor = ImageProcessor()
-                md_gen = MarkdownGenerator()
-                pdf_gen = PDFGenerator()
+                # Create necessary directories
+                base_dir = Path(__file__).parent
+                assets_dir = base_dir / 'assets'
+                clippings_dir = base_dir / 'clippings'
+                assets_dir.mkdir(exist_ok=True)
+                clippings_dir.mkdir(exist_ok=True)
+                
+                image_processor = ImageProcessor(assets_dir)
+                md_gen = MarkdownGenerator(clippings_dir)
+                pdf_gen = PDFGenerator(clippings_dir, assets_dir)
             
             # Determine content type
             is_youtube = 'youtube.com' in url or 'youtu.be' in url
@@ -68,10 +75,10 @@ if st.button("🚀 시작", type="primary", use_container_width=True):
             # Extract content
             with st.spinner("콘텐츠 추출 중..."):
                 if is_youtube:
-                    clipper = YouTubeClipper()
+                    clipper = YouTubeClipper(image_processor)
                     st.info("🎥 YouTube 영상 처리 중...")
                 else:
-                    clipper = WebClipper()
+                    clipper = WebClipper(image_processor)
                     st.info("🌐 웹 페이지 처리 중...")
                 
                 data = clipper.extract_content(url)

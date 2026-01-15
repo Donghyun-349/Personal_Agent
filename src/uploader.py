@@ -17,7 +17,10 @@ class GDriveUploader:
         """
         self.creds = None
         self.service = None
-        self.scopes = ['https://www.googleapis.com/auth/drive.file']
+        # Updated scope to allow access to existing folders
+        # 'drive.file' only allows access to files created by this app
+        # 'drive' allows access to all files and folders
+        self.scopes = ['https://www.googleapis.com/auth/drive']
         
         # Initialize credentials
         self.authenticate(token_json)

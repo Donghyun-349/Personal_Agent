@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict
 from PIL import Image
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 # Use absolute imports
 from config import (
@@ -33,13 +33,12 @@ def sanitize_filename(title: str, max_length: int = 150) -> str:
 def generate_filename(title: str, save_dir: Path, extension: str = '.md') -> str:
     """파일명 생성 (중복 처리 포함)"""
     sanitized = sanitize_filename(title)
-    date_str = datetime.now().strftime("%Y-%m-%d")
     
     if not sanitized or sanitized == "Untitled":
-        timestamp = datetime.now().strftime("%H%M%S")
-        filename = f"[{date_str}] Untitled_{timestamp}{extension}"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Untitled_{timestamp}{extension}"
     else:
-        filename = f"[{date_str}] {sanitized}{extension}"
+        filename = f"{sanitized}{extension}"
     
     # 중복 파일명 처리
     filepath = save_dir / filename
@@ -116,22 +115,31 @@ class ImageProcessor:
         self.created_files = []
 
     def download_and_resize(self, image_url: str, base_filename: str = None, target_dir: Path = None) -> Optional[str]:
-        """
-        이미지를 다운로드하고 리사이징하여 로컬 경로 반환
-        target_dir: 이미지를 저장할 디렉토리 (None이면 assets_dir 사용)
-        """
+        """이미지 다운로드 및 리사이징 후 로컬 경로 반환"""
         try:
             # http/https 체크
             if not image_url or not image_url.startswith(('http://', 'https://')):
                 return None
             
-            # 저장 위치 결정
-            if target_dir:
-                img_dir = target_dir / "img"
-                img_dir.mkdir(parents=True, exist_ok=True)
-            else:
-                img_dir = self.assets_dir
-                img_dir.mkdir(parents=True, exist_ok=True)
+            # 네이버 이미지 URL에서 썸네일 파라미터를 더 큰 사이즈로 교체
+            # 예: ?type=w80_blur -> ?type=w966 (더 큰 사이즈)
+            if 'pstatic.net' in image_url or 'naver.com' in image_url:
+                parsed = urlparse(image_url)
+                # 쿼리 파라미터를 더 큰 사이즈로 교체
+                if '?type=' in image_url:
+                    # 원본 크기에 가까운 큰 사이즈 요청
+                    clean_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', 'type=w966', ''))
+                    print(f"원본 URL 변환: {image_url} -> {clean_url}")
+                    image_url = clean_url
+                else:
+                    # type 파라미터가 없으면 추가
+                    clean_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', 'type=w966', ''))
+                    print(f"원본 URL 변환: {image_url} -> {clean_url}")
+                    image_url = clean_url
+            
+            # 대상 디렉토리 설정
+            if target_dir is None:
+                target_dir = self.assets_dir
             
             # 이미지 다운로드
             headers = {"User-Agent": USER_AGENT}
@@ -143,26 +151,36 @@ class ImageProcessor:
             image_data = response.content
             img = Image.open(io.BytesIO(image_data))
             
+            print(f"다운로드된 이미지 크기: {img.width}x{img.height}px")
+            
             # 원본 형식 저장
             original_format = img.format or "PNG"
             
-            # 리사이징
-            img = self._resize_image(img)
+            # 리사이징 (MAX_IMAGE_SIZE보다 큰 경우만)
+            if img.width > self.max_size or img.height > self.max_size:
+                ratio = min(self.max_size / img.width, self.max_size / img.height)
+                new_width = int(img.width * ratio)
+                new_height = int(img.height * ratio)
+                img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                print(f"리사이징: {new_width}x{new_height}px")
             
             # 파일명 생성
             if base_filename:
-                parsed_url = urlparse(image_url)
-                ext = Path(parsed_url.path).suffix or f".{original_format.lower()}"
+                ext = Path(urlparse(image_url).path).suffix or f".{original_format.lower()}"
                 filename = f"{base_filename}{ext}"
             else:
                 url_hash = hashlib.md5(image_url.encode()).hexdigest()[:8]
                 ext = f".{original_format.lower()}"
                 filename = f"{url_hash}{ext}"
             
+            # img 폴더 생성
+            img_dir = target_dir / "img"
+            img_dir.mkdir(parents=True, exist_ok=True)
+            
             # 파일 저장
             filepath = img_dir / filename
             
-            # 중복 파임명 처리
+            # 중복 파일명 처리
             counter = 1
             original_filepath = filepath
             while filepath.exists():
@@ -170,27 +188,20 @@ class ImageProcessor:
                 suffix = original_filepath.suffix
                 filepath = img_dir / f"{stem}_{counter}{suffix}"
                 counter += 1
-
+            
             # Track file
             self.created_files.append(filepath)
             
             # 이미지 저장
             if original_format in ["JPEG", "JPG"]:
-                img.save(filepath, "JPEG", quality=85, optimize=True)
+                img.save(filepath, "JPEG", quality=95, optimize=True)  # 품질 향상: 85 -> 95
             elif original_format == "PNG":
                 img.save(filepath, "PNG", optimize=True)
             else:
                 img.save(filepath, original_format)
             
-            # 상대 경로 반환
-            if target_dir:
-                return f"img/{filepath.name}"
-            else:
-                try:
-                    return str(filepath.relative_to(self.assets_dir.parent))
-                except ValueError:
-                    # fallback if simple relative path fails
-                    return str(filepath)
+            # 상대 경로 반환 (img/filename.ext)
+            return f"img/{filepath.name}"
             
         except Exception as e:
             print(f"이미지 다운로드/리사이징 실패 ({image_url}): {e}")

@@ -2,10 +2,11 @@
 import os
 import re
 import json
+import asyncio
+import sys
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict
-from playwright.sync_api import sync_playwright
 import requests
 from bs4 import BeautifulSoup
 
@@ -155,6 +156,19 @@ class HTMLGenerator:
             if not image_url or not image_url.startswith(('http://', 'https://')):
                 return None
             
+            # 네이버 이미지 URL에서 썸네일 파라미터를 더 큰 사이즈로 교체
+            # 예: ?type=w80_blur -> ?type=w966 (더 큰 사이즈)
+            from urllib.parse import urlparse, urlunparse
+            if 'pstatic.net' in image_url or 'naver.com' in image_url:
+                parsed = urlparse(image_url)
+                # 쿼리 파라미터를 더 큰 사이즈로 교체
+                if '?type=' in image_url:
+                    clean_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', 'type=w966', ''))
+                    image_url = clean_url
+                else:
+                    clean_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', 'type=w966', ''))
+                    image_url = clean_url
+            
             # html_img_dir이 html_dir에 상대적으로 올바르게 설정되어 있는지 확인
             expected_html_img_dir = self.html_dir / "img"
             if self.html_img_dir != expected_html_img_dir:
@@ -168,13 +182,17 @@ class HTMLGenerator:
             response.raise_for_status()
             
             # 이미지 데이터 로드
+            from PIL import Image
+            import io
+            import hashlib
+            
             image_data = response.content
             img = Image.open(io.BytesIO(image_data))
             
             # 원본 형식 저장
             original_format = img.format or "PNG"
             
-            # 리사이징
+            # 리사이징 (MAX_IMAGE_SIZE보다 큰 경우만)
             if img.width > MAX_IMAGE_SIZE or img.height > MAX_IMAGE_SIZE:
                 ratio = min(MAX_IMAGE_SIZE / img.width, MAX_IMAGE_SIZE / img.height)
                 new_width = int(img.width * ratio)
@@ -365,18 +383,52 @@ class PDFGenerator:
         self.pdf_dir.mkdir(parents=True, exist_ok=True)
     
     def generate_filename(self, title: str, url: str) -> str:
-        """파일명 생성"""
-        return generate_filename(title, self.pdf_dir, '.pdf')
+        """PDF 파일명 생성: 원문제목_attach.pdf (특수기호 제거)"""
+        import re
+        
+        # 특수문자 및 공백을 모두 제거하고 언더바로 대체
+        # 한글, 영문, 숫자만 남기고 나머지는 언더바로 변환
+        clean_title = re.sub(r'[^\w가-힣]', '_', title)
+        # 연속된 언더바를 하나로 축소
+        clean_title = re.sub(r'_+', '_', clean_title)
+        # 앞뒤 언더바 제거
+        clean_title = clean_title.strip('_')
+        
+        # 길이 제한 (Windows 파일명 제한 고려)
+        if len(clean_title) > 100:
+            clean_title = clean_title[:100]
+        
+        # _attach 접미사 추가
+        filename = f"{clean_title}_attach.pdf"
+        
+        return filename
+    
+    async def _generate_pdf_async(self, html_filepath: Path, pdf_filepath: Path) -> None:
+        """Async method to generate PDF using Playwright"""
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError:
+            raise ImportError("playwright가 설치되지 않았습니다. 'pip install playwright' 후 'playwright install chromium'을 실행해주세요.")
+        
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            # HTML 파일 경로를 file:// URL로 변환
+            html_url = html_filepath.as_uri()
+            await page.goto(html_url, wait_until='networkidle')
+            # PDF 생성 (A4 크기, 여백 설정)
+            await page.pdf(
+                path=str(pdf_filepath),
+                format='A4',
+                margin={'top': '20mm', 'right': '20mm', 'bottom': '20mm', 'left': '20mm'},
+                print_background=True
+            )
+            await browser.close()
     
     def save(self, data: Dict, main_container_html: str = None, source_html_path: Path = None) -> Path:
         """PDF 파일 저장 (HTML 파일을 생성한 후 PDF로 변환)
         source_html_path: 이미 생성된 HTML 파일이 있다면 그 경로를 사용하여 재생성 방지
         """
-        try:
-            from playwright.sync_api import sync_playwright
-        except ImportError:
-            raise ImportError("playwright가 설치되지 않았습니다. 'pip install playwright' 후 'playwright install chromium'을 실행해주세요.")
-        
         filename = self.generate_filename(data['title'], data['url'])
         filepath = self.pdf_dir / filename
         
@@ -392,21 +444,22 @@ class PDFGenerator:
             html_filepath = html_generator.save(data, main_container_html)
             temp_html_created = True
         
-        # HTML 파일을 PDF로 변환
-        with sync_playwright() as p:
-            browser = p.chromium.launch()
-            page = browser.new_page()
-            # HTML 파일 경로를 file:// URL로 변환
-            html_url = html_filepath.as_uri()
-            page.goto(html_url, wait_until='networkidle')
-            # PDF 생성 (A4 크기, 여백 설정)
-            page.pdf(
-                path=str(filepath),
-                format='A4',
-                margin={'top': '20mm', 'right': '20mm', 'bottom': '20mm', 'left': '20mm'},
-                print_background=True
-            )
-            browser.close()
+        # HTML 파일을 PDF로 변환 (isolated event loop)
+        # Windows에서 subprocess 문제 해결을 위한 event loop policy 설정
+        if sys.platform == 'win32':
+            # Set the policy before creating the loop
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        
+        # Create a new event loop for this operation
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(self._generate_pdf_async(html_filepath, filepath))
+        finally:
+            loop.close()
+            # Reset to default policy if needed
+            if sys.platform == 'win32':
+                asyncio.set_event_loop_policy(None)
         
         # 임시 HTML 파일 삭제 (우리가 생성했을 때만)
         if temp_html_created:
